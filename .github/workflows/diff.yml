@@ -68,8 +68,17 @@ jobs:
           -F 'old_version_file_content=@files/first.ttl;type=text/turtle' \
           -F 'old_version_id=old')
         
-        DATASET_ID=$(echo $RESPONSE | jq -r '.dataset_id')
-        echo "✅ Dataset ID: $DATASET_ID"
+        echo "📥 Raw response from Create diff:"
+        echo "$RESPONSE"
+        
+        if echo "$RESPONSE" | jq . >/dev/null 2>&1; then
+          DATASET_ID=$(echo $RESPONSE | jq -r '.dataset_id')
+          echo "✅ Dataset ID: $DATASET_ID"
+        else
+          echo "❌ Create diff failed or returned non-JSON:"
+          echo "$RESPONSE"
+          exit 1
+        fi
 
         echo "📡 Step 2: Get active tasks"
         curl -s $BASE_URL/api/v1/tasks | jq
