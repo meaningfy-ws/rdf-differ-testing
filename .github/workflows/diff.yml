@@ -43,10 +43,8 @@ jobs:
 
     - name: Wait for service to be ready
       run: |
-        echo "Waiting for rdf-differ-ws (via Traefik) to be up..."
-        until curl -s http://api.localhost/actuator/health | grep '"status":"UP"'; do
-          sleep 5
-        done
+        echo "Waiting 10 seconds for rdf-differ-ws to be ready..."
+        sleep 10
 
     - name: Perform RDF Diff
       run: |
