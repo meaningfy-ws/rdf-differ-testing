@@ -1,0 +1,87 @@
+name: RDF Diff
+
+on:
+  push:
+    paths:
+      - 'files/**'
+  workflow_dispatch:
+
+jobs:
+  rdf-diff:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout this repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make git
+
+    - name: Clone rdf-differ-ws (but exclude from commits)
+      run: |
+        git clone https://github.com/meaningfy-ws/rdf-differ-ws.git
+        echo "rdf-differ-ws/" >> .gitignore
+        echo "Added rdf-differ-ws/ to .gitignore"
+
+    - name: Start Traefik
+      run: |
+        cd rdf-differ-ws
+        make start-traefik
+        echo "Running containers after start-traefik:"
+        docker ps
+
+    - name: Start RDF Differ Services
+      run: |
+        cd rdf-differ-ws
+        make start-services
+        echo "Running containers after start-services:"
+        docker ps
+
+    - name: Wait for service to be ready
+      run: |
+        echo "Waiting for rdf-differ-ws (via Traefik) to be up..."
+        until curl -s http://api.localhost/actuator/health | grep '"status":"UP"'; do
+          sleep 5
+        done
+
+    - name: Perform RDF Diff
+      run: |
+        FILE1=files/first.ttl
+        FILE2=files/second.ttl
+        OUTDIR=diff-output
+        mkdir -p $OUTDIR
+
+        echo "Sending RDF files to rdf-differ-ws (via Traefik)..."
+        curl -X POST \
+          -H "Content-Type: multipart/form-data" \
+          -F "base=@$FILE1" \
+          -F "changed=@$FILE2" \
+          -F "accept=application/ld+json" \
+          http://api.localhost/api/v1/diff > $OUTDIR/diff.json
+
+        echo "✅ Diff result saved to $OUTDIR/diff.json"
+
+    - name: Stop RDF Differ Services and Traefik
+      run: |
+        cd rdf-differ-ws
+        make stop-services
+        echo "🔎 Running containers after stop-services:"
+        docker ps
+
+        make stop-traefik
+        echo "🔎 Running containers after stop-traefik:"
+        docker ps
+
+    - name: Commit and push diff result
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add diff-output
+        git commit -m "Add RDF diff result"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
