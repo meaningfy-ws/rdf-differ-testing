@@ -56,7 +56,7 @@ jobs:
         BASE_URL=http://api.localhost
 
         echo "🚀 Step 1: Create diff"
-        RESPONSE=$(curl -s -X POST \
+        RESPONSE=$(curl -s -L -k -X POST \
           $BASE_URL/diffs \
           -H 'accept: */*' \
           -H 'Content-Type: multipart/form-data' \
