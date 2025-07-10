@@ -60,7 +60,8 @@ jobs:
           $BASE_URL/diffs \
           -H 'accept: */*' \
           -H 'Content-Type: multipart/form-data' \
-          -F 'dataset_description=' \
+          -F 'dataset_description=differ' \
+          -F 'dataset_name=diffus' \
           -F 'dataset_id=diff' \
           -F 'dataset_uri=http://diff.com' \
           -F 'new_version_file_content=@files/second.ttl;type=text/turtle' \
