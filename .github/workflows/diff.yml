@@ -51,8 +51,8 @@ jobs:
         cd rdf-differ-ws
         bash ./bash/rdf-differ.sh --old $FILE1 --new $FILE2 --output $OUTDIR
         
-        echo "🔎 Last few lines of the report:"
-        tail $OUTDIR/diff.${TEMPLATE}
+        echo "🔎 First few lines of the report:"
+        head $OUTDIR/diff.${TEMPLATE}
 
     - name: Stop RDF Differ services and Traefik
       run: |
