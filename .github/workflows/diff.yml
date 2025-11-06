@@ -43,8 +43,8 @@ jobs:
 
     - name: Perform full RDF diff and report workflow
       run: |
-        FILE1=files/first.ttl
-        FILE2=files/second.ttl
+        FILE1=../files/first.ttl
+        FILE2=../files/second.ttl
         OUTDIR=../diff-output
         TEMPLATE=json
 
