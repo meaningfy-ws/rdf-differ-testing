@@ -16,25 +16,20 @@ jobs:
       with:
         fetch-depth: 0  # Required for committing back
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y make git jq
-
     - name: Clone rdf-differ-ws (but exclude from commits)
       run: |
-        git clone https://github.com/meaningfy-ws/rdf-differ-ws.git
+        git clone --branch feature/DIF1-14_cli-client https://github.com/meaningfy-ws/rdf-differ-ws.git
         echo "rdf-differ-ws/" >> .gitignore
         echo "✅ Added rdf-differ-ws/ to .gitignore"
 
-    - name: Start Traefik
+    - name: Start Traefik for user-friendly network routing
       run: |
         cd rdf-differ-ws
         make start-traefik
         echo "🔎 Running containers after start-traefik:"
         docker ps
 
-    - name: Start RDF Differ Services
+    - name: Start RDF Differ services
       run: |
         cd rdf-differ-ws
         make start-services
@@ -43,138 +38,28 @@ jobs:
 
     - name: Wait for service to be ready
       run: |
-        echo "⏳ Waiting 10 seconds for rdf-differ-ws (via Traefik) to be ready..."
-        sleep 10
+        echo "⏳ Waiting 5 seconds for rdf-differ-ws (via Traefik) to be ready..."
+        sleep 5
 
-    - name: Perform full RDF Diff and Report workflow
+    - name: Perform full RDF diff and report workflow
       run: |
         FILE1=files/first.ttl
         FILE2=files/second.ttl
-        OUTDIR=diff-output
-        mkdir -p $OUTDIR
+        OUTDIR=../diff-output
+        TEMPLATE=json
 
-        BASE_URL=http://api.localhost
+        cd rdf-differ-ws
+        bash ./bash/rdf-differ.sh --old $FILE1 --new $FILE2 --output $OUTDIR
+        
+        echo "🔎 Last few lines of the report:"
+        tail $OUTDIR/diff.${TEMPLATE}
 
-        echo "🚀 Step 1: Create diff"
-        RESPONSE=$(curl -s -L -k -X POST \
-          $BASE_URL/diffs \
-          -H 'accept: */*' \
-          -H 'Content-Type: multipart/form-data' \
-          -F 'dataset_description=differ' \
-          -F 'dataset_name=diffus' \
-          -F 'dataset_id=diff' \
-          -F 'dataset_uri=http://diff.com' \
-          -F 'new_version_file_content=@files/second.ttl;type=text/turtle' \
-          -F 'new_version_id=new' \
-          -F 'old_version_file_content=@files/first.ttl;type=text/turtle' \
-          -F 'old_version_id=old')
-        
-        echo "📥 Raw response from Create diff:"
-        echo "$RESPONSE"
-        
-        if echo "$RESPONSE" | jq . >/dev/null 2>&1; then
-          DATASET_ID=$(echo "$RESPONSE" | jq -r '.uid')
-          echo "✅ Dataset ID: $DATASET_ID"
-        else
-          echo "❌ Create diff failed or returned non-JSON:"
-          echo "$RESPONSE"
-          exit 1
-        fi
-
-        echo "Step 2: Get active tasks"
-        ACTIVE_TASKS=$(curl -s -L -k -X GET "$BASE_URL/tasks/active" -H 'accept: application/json')
-        
-        echo "📥 Active tasks response:"
-        echo "$ACTIVE_TASKS" | jq
-        
-        TASK_ID=$(echo "$ACTIVE_TASKS" | jq -r '.[0].id')
-        if [ -z "$TASK_ID" ] || [ "$TASK_ID" == "null" ]; then
-          echo "No active tasks found!"
-          exit 1
-        fi
-        echo "Found active task ID: $TASK_ID"
-
-        echo "Step 3: Wait for task ($TASK_ID) to complete"
-        while true; do
-          STATUS=$(curl -s -L -k "$BASE_URL/tasks/$TASK_ID" -H 'accept: application/json' | jq -r '.status')
-          echo "   Task status: $STATUS"
-          if [[ "$STATUS" == "SUCCESS" ]]; then
-            echo "Task completed successfully"
-            break
-          elif [[ "$STATUS" == "FAILED" || "$STATUS" == "ERROR" ]]; then
-            echo "Task failed!"
-            exit 1
-          fi
-          sleep 5
-        done
-
-        echo "🚀 Step 4: Request report"
-        REPORT_REQ=$(jq -n \
-          --arg ap "skos-core-en-only" \
-          --arg ds "$DATASET_ID" \
-          --arg rebuild "true" \
-          --arg tmpl "json" \
-          '{application_profile:$ap, dataset_id:$ds, rebuild:$rebuild, template_type:$tmpl}')
-        
-        REPORT_RESPONSE=$(curl -s -L -k -X POST \
-          "$BASE_URL/diffs/report" \
-          -H "accept: */*" \
-          -H "Content-Type: application/json" \
-          -d "$REPORT_REQ")
-        
-        echo "📥 Report request response:"
-        echo "$REPORT_RESPONSE" | jq .
-        
-        REPORT_TASK_ID=$(echo "$REPORT_RESPONSE" | jq -r '.task_id // .id')
-        if [ -z "$REPORT_TASK_ID" ] || [ "$REPORT_TASK_ID" = "null" ]; then
-          echo "❌ No report task id in response"; exit 1
-        fi
-        echo "✅ Report task id: $REPORT_TASK_ID"
-
-        echo "📡 Step 5: Get active tasks"
-        ACTIVE_TASKS=$(curl -s -L -k -X GET "$BASE_URL/tasks/active" -H 'accept: application/json')
-        
-        echo "📥 Active tasks response:"
-        echo "$ACTIVE_TASKS" | jq
-
-        echo "⏳ Step 6: Wait for report task to complete"
-        while true; do
-          STATUS=$(curl -s -L -k "$BASE_URL/tasks/$REPORT_TASK_ID" -H 'accept: application/json' | jq -r '.status')
-          echo "   Task status: $STATUS"
-          if [[ "$STATUS" == "SUCCESS" ]]; then
-            echo "Task completed successfully"
-            break
-          elif [[ "$STATUS" == "FAILED" || "$STATUS" == "ERROR" ]]; then
-            echo "Task failed!"
-            exit 1
-          fi
-          sleep 5
-        done
-
-        echo "📥 Step 7: Download report file"
-        
-        APPLICATION_PROFILE="skos-core-en-only"
-        TEMPLATE_TYPE="json"
-        
-        DL_URL="$BASE_URL/diffs/report?dataset_id=$DATASET_ID&application_profile=$APPLICATION_PROFILE&template_type=$TEMPLATE_TYPE"
-        
-        echo "→ GET $DL_URL"
-        curl -s -L -k -X GET \
-          "$DL_URL" \
-          -H "accept: text/html" \
-          -o "$OUTDIR/diff.json"
-        
-        jq -S . "$OUTDIR/diff.json" > "$OUTDIR/diff.json.tmp" && mv "$OUTDIR/diff.json.tmp" "$OUTDIR/diff.json"
-
-    - name: Stop RDF Differ Services and Traefik
+    - name: Stop RDF Differ services and Traefik
       run: |
         cd rdf-differ-ws
         make stop-services
-        echo "🔎 Running containers after stop-services:"
-        docker ps
-
         make stop-traefik
-        echo "🔎 Running containers after stop-traefik:"
+        echo "🔎 Running containers after stopping services and Traefik:"
         docker ps
 
     - name: Commit and push diff result
@@ -182,7 +67,7 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add diff-output
-        git commit -m "Add RDF diff result"
+        git commit -m "Add RDF diff report"
         git push
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
