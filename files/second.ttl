@@ -13,7 +13,7 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 <http://publications.europa.eu/resource/authority/data-theme/AGRI> a euvoc:DataTheme,
-        skos:Concepto ;
+        skos:Concept ;
     lemon:context <http://publications.europa.eu/resource/authority/use-context/DCAT_AP>,
         <http://publications.europa.eu/resource/authority/use-context/IMMC>,
         <http://publications.europa.eu/resource/authority/use-context/ODP> ;
