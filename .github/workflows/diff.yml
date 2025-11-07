@@ -18,7 +18,7 @@ jobs:
 
     - name: Clone rdf-differ-ws (but exclude from commits)
       run: |
-        git clone --branch feature/DIF1-14_cli-client https://github.com/meaningfy-ws/rdf-differ-ws.git
+        git clone https://github.com/meaningfy-ws/rdf-differ-ws.git
         echo "rdf-differ-ws/" >> .gitignore
         echo "✅ Added rdf-differ-ws/ to .gitignore"
 
