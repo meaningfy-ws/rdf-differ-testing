@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout this repository
+    - name: Check out this repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Required for committing back
@@ -26,33 +26,40 @@ jobs:
       run: |
         cd rdf-differ-ws
         make start-traefik
-        echo "🔎 Running containers after start-traefik:"
+        echo "🔎 Running Docker containers after start-traefik:"
         docker ps
 
-    - name: Start RDF Differ services
+    - name: Start RDF Differ Docker services
       run: |
         cd rdf-differ-ws
         make start-services
         echo "🔎 Running containers after start-services:"
         docker ps
 
-    - name: Wait for service to be ready
+    - name: Wait for RDF Differ services to be ready
       run: |
-        echo "⏳ Waiting 5 seconds for rdf-differ-ws (via Traefik) to be ready..."
+        echo "⏳ Waiting 5 seconds for rdf-differ-ws container group (via Traefik) to be ready..."
         sleep 5
 
     - name: Perform full RDF diff and report workflow
+      env:
+        FILE1: ${{ vars.FILE1 || 'files/first.ttl' }}
+        FILE2: ${{ vars.FILE2 || 'files/second.ttl' }}
+        OUTDIR: ${{ vars.OUTDIR || 'diff-output' }}
+        AP: ${{ vars.AP || 'owl-core-en-only' }}
+        TEMPLATE: ${{ vars.TEMPLATE || 'html' }}
       run: |
-        FILE1=../files/first.ttl
-        FILE2=../files/second.ttl
-        OUTDIR=../diff-output
-        TEMPLATE=json
+        echo "FILE1: $FILE1"
+        echo "FILE2: $FILE2"
+        echo "OUTDIR: $OUTDIR"
+        echo "AP: $AP"
+        echo "TEMPLATE: $TEMPLATE"
 
         cd rdf-differ-ws
-        bash ./bash/rdf-differ.sh --old $FILE1 --new $FILE2 --output $OUTDIR
+        bash ./bash/rdf-differ.sh --old ../$FILE1 --new ../$FILE2 --output ../$OUTDIR --profile $AP --template $TEMPLATE
         
-        echo "🔎 First few lines of the report:"
-        head $OUTDIR/diff.${TEMPLATE}
+        echo "🔎 First few lines of the diff report:"
+        head ../$OUTDIR/diff.${TEMPLATE}
 
     - name: Stop RDF Differ services and Traefik
       run: |
@@ -67,7 +74,7 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add diff-output
-        git commit -m "Add RDF diff report"
+        git commit -m "chore(ci-auto): add RDF diff report for latest updates" || echo "No changes to commit"
         git push
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
